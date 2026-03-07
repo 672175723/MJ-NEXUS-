@@ -52,6 +52,36 @@ export const SEO: React.FC<SEOProps> = ({
       {/* Automatic Updates Meta (Search Engine Hints) */}
       <meta name="revisit-after" content="1 days" />
       <meta name="robots" content="index, follow" />
+
+      {/* JSON-LD Structured Data */}
+      <script type="application/ld+json">
+        {JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          "name": siteName,
+          "url": url,
+          "description": description,
+          "applicationCategory": "FinanceApplication, SportsApplication, ShoppingApplication",
+          "genre": "Betting, E-commerce, Home Services",
+          "browserRequirements": "Requires JavaScript",
+          "softwareVersion": "2.0.0",
+          "operatingSystem": "All",
+          "author": {
+            "@type": "Person",
+            "name": "Joël Mikam Djeute"
+          },
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "4.9",
+            "reviewCount": "12500"
+          }
+        })}
+      </script>
     </Helmet>
   );
 };

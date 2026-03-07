@@ -1,3 +1,7 @@
 User-agent: *
 Allow: /
-Sitemap: https://mjworldbet.com/sitemap.xml
+Disallow: /api/
+Disallow: /admin/
+Disallow: /auth/
+
+Sitemap: https://mjnexus.com/sitemap.xml

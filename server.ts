@@ -4,8 +4,35 @@ import cors from "cors";
 import axios from "axios";
 import Stripe from "stripe";
 import dotenv from "dotenv";
+import Database from "better-sqlite3";
 
 dotenv.config();
+
+const db = new Database("mjnexus.db");
+
+// Initialize tables
+db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE,
+    email TEXT UNIQUE,
+    password TEXT,
+    balance REAL DEFAULT 0,
+    referral_code TEXT UNIQUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS referrals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    referrer_id INTEGER,
+    referred_id INTEGER,
+    reward_amount REAL,
+    status TEXT DEFAULT 'completed',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (referrer_id) REFERENCES users(id),
+    FOREIGN KEY (referred_id) REFERENCES users(id)
+  );
+`);
 
 const stripe = process.env.STRIPE_SECRET_KEY 
   ? new Stripe(process.env.STRIPE_SECRET_KEY) 
@@ -17,6 +44,115 @@ async function startServer() {
 
   app.use(cors());
   app.use(express.json());
+
+  // --- Auth & Referral System ---
+
+  app.post("/api/auth/signup", (req, res) => {
+    const { username, email, password, referralCode } = req.body;
+
+    try {
+      // Generate a unique referral code for the new user
+      const newUserReferralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+      const insertUser = db.prepare(`
+        INSERT INTO users (username, email, password, balance, referral_code)
+        VALUES (?, ?, ?, ?, ?)
+      `);
+
+      const initialBalance = 0;
+      const result = insertUser.run(username, email, password, initialBalance, newUserReferralCode);
+      const userId = result.lastInsertRowid;
+
+      let rewardMessage = "";
+
+      // Handle referral if code provided
+      if (referralCode) {
+        const referrer = db.prepare("SELECT id FROM users WHERE referral_code = ?").get(referralCode) as any;
+        
+        if (referrer) {
+          const rewardAmount = 500; // 500 units reward
+          
+          // Record the referral
+          db.prepare(`
+            INSERT INTO referrals (referrer_id, referred_id, reward_amount)
+            VALUES (?, ?, ?)
+          `).run(referrer.id, userId, rewardAmount);
+
+          // Update referrer balance
+          db.prepare("UPDATE users SET balance = balance + ? WHERE id = ?").run(rewardAmount, referrer.id);
+          
+          // Optional: Give reward to the new user too
+          const welcomeBonus = 200;
+          db.prepare("UPDATE users SET balance = balance + ? WHERE id = ?").run(welcomeBonus, userId);
+          
+          rewardMessage = `Referral successful! You received a ${welcomeBonus} welcome bonus.`;
+        }
+      }
+
+      res.json({
+        status: "success",
+        message: "User created successfully. " + rewardMessage,
+        user: {
+          id: userId,
+          username,
+          email,
+          referralCode: newUserReferralCode,
+          balance: referralCode ? 200 : 0
+        }
+      });
+    } catch (error: any) {
+      console.error("Signup Error:", error);
+      res.status(400).json({ status: "error", message: error.message });
+    }
+  });
+
+  app.post("/api/auth/login", (req, res) => {
+    const { email, password } = req.body;
+    const user = db.prepare("SELECT * FROM users WHERE email = ? AND password = ?").get(email, password) as any;
+
+    if (user) {
+      res.json({
+        status: "success",
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          balance: user.balance,
+          referralCode: user.referral_code
+        }
+      });
+    } else {
+      res.status(401).json({ status: "error", message: "Invalid credentials" });
+    }
+  });
+
+  app.get("/api/user/referral-info/:userId", (req, res) => {
+    const { userId } = req.params;
+    
+    try {
+      const user = db.prepare("SELECT referral_code FROM users WHERE id = ?").get(userId) as any;
+      if (!user) return res.status(404).json({ status: "error", message: "User not found" });
+
+      const referrals = db.prepare(`
+        SELECT r.*, u.username as referred_username 
+        FROM referrals r
+        JOIN users u ON r.referred_id = u.id
+        WHERE r.referrer_id = ?
+      `).all(userId) as any[];
+
+      const totalRewards = referrals.reduce((sum, r) => sum + r.reward_amount, 0);
+
+      res.json({
+        status: "success",
+        referralCode: user.referral_code,
+        referralsCount: referrals.length,
+        totalRewards,
+        referrals
+      });
+    } catch (error: any) {
+      res.status(500).json({ status: "error", message: error.message });
+    }
+  });
 
   // --- International Payment Gateway (Stripe) ---
 

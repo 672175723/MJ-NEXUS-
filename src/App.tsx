@@ -606,10 +606,12 @@ export default function App() {
 
   // Auth & Role States
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [userRole, setUserRole] = useState(1); // L1: Basic, L2: Intermediate, L3: Supervisor, L4: Country, L5: Region, L6: Director General
   const [userVipLevel, setUserVipLevel] = useState('Silver');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
+  const [referralInfo, setReferralInfo] = useState<any>(null);
 
   useEffect(() => {
     const hasSeenOnboarding = localStorage.getItem('mj_nexus_onboarding_seen');
@@ -617,6 +619,25 @@ export default function App() {
       setShowOnboarding(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (isLoggedIn && currentUser) {
+      fetchReferralInfo();
+    }
+  }, [isLoggedIn, currentUser]);
+
+  const fetchReferralInfo = async () => {
+    if (!currentUser) return;
+    try {
+      const response = await fetch(`/api/user/referral-info/${currentUser.id}`);
+      const data = await response.json();
+      if (data.status === 'success') {
+        setReferralInfo(data);
+      }
+    } catch (error) {
+      console.error("Error fetching referral info:", error);
+    }
+  };
 
   const handleNextOnboarding = () => {
     if (onboardingStep < ONBOARDING_STEPS.length - 1) {
@@ -776,6 +797,25 @@ export default function App() {
   const [loanDuration, setLoanDuration] = useState(4); // weeks
   const [loanType, setLoanType] = useState<'weekly' | 'monthly'>('weekly');
   const [isApplyingLoan, setIsApplyingLoan] = useState(false);
+
+  const handleShare = async () => {
+    const shareData = {
+      title: 'MJ NEXUS | The Unified World',
+      text: 'Découvrez MJ NEXUS : L\'écosystème unifié qui révolutionne votre quotidien. Paris P2P, Marketplace, Services à domicile et Finance en un seul endroit !',
+      url: window.location.origin
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(window.location.origin);
+        alert('Lien copié dans le presse-papier ! Partagez-le avec vos amis.');
+      }
+    } catch (err) {
+      console.error('Error sharing:', err);
+    }
+  };
 
   // Video Generation States
   const [videoPrompt, setVideoPrompt] = useState('');
@@ -1073,19 +1113,69 @@ export default function App() {
     phone: '',
     username: '',
     password: '',
-    email: ''
+    email: '',
+    referralCode: ''
   });
 
-  const handleLogin = () => {
-    setIsLoggedIn(true);
-    setShowAuthModal(false);
-    setActiveTab('dashboard');
+  const handleLogin = async () => {
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: authForm.phone, password: authForm.password })
+      });
+      const data = await response.json();
+      if (data.status === 'success') {
+        setIsLoggedIn(true);
+        setCurrentUser(data.user);
+        setBalance(data.user.balance);
+        setShowAuthModal(false);
+        setActiveTab('dashboard');
+        
+        // Track Login
+        ReactGA.event({ category: 'User', action: 'Login' });
+      } else {
+        alert(data.message);
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      alert("Failed to login. Please try again.");
+    }
   };
 
-  const handleRegister = () => {
-    setIsLoggedIn(true);
-    setShowAuthModal(false);
-    setActiveTab('dashboard');
+  const handleRegister = async () => {
+    try {
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          username: authForm.phone, 
+          email: authForm.email || `${authForm.phone}@mjnexus.com`, 
+          password: authForm.password,
+          referralCode: authForm.referralCode
+        })
+      });
+      const data = await response.json();
+      if (data.status === 'success') {
+        setIsLoggedIn(true);
+        setCurrentUser(data.user);
+        setBalance(data.user.balance);
+        setShowAuthModal(false);
+        setActiveTab('dashboard');
+        
+        if (data.message.includes('Referral')) {
+          alert(data.message);
+        }
+
+        // Track Registration
+        ReactGA.event({ category: 'User', action: 'Signup' });
+      } else {
+        alert(data.message);
+      }
+    } catch (error) {
+      console.error("Registration error:", error);
+      alert("Failed to register. Please try again.");
+    }
   };
 
   const renderAuditLog = () => (
@@ -1239,6 +1329,17 @@ export default function App() {
       case 'dashboard':
         return (
           <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-black italic uppercase text-slate-900 tracking-tight">Tableau de Bord</h2>
+              <button 
+                onClick={handleShare}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-100"
+              >
+                <Megaphone size={14} />
+                Partager
+              </button>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <StatCard label="Total Balance" value={formatPrice(balance)} trend={12.5} icon={Wallet} />
               <StatCard label="Active Bets" value="14" trend={5.2} icon={TrendingUp} />
@@ -1357,14 +1458,29 @@ export default function App() {
                     <h3 className="font-bold">Referral Program</h3>
                   </div>
                   <p className="text-sm opacity-90 mb-6">
-                    Invite your friends and earn 5% of their betting commissions for life!
+                    Invite your friends and earn instant rewards for every successful signup!
                   </p>
                   <div className="bg-white/10 p-3 rounded-xl flex items-center justify-between mb-4">
-                    <code className="text-xs font-mono">WORLD-JOEL-2026</code>
-                    <button className="text-xs font-bold hover:text-emerald-200">COPY</button>
+                    <code className="text-xs font-mono">{referralInfo?.referralCode || 'LOGIN_REQUIRED'}</code>
+                    <button 
+                      onClick={() => {
+                        if (referralInfo?.referralCode) {
+                          navigator.clipboard.writeText(referralInfo.referralCode);
+                          alert('Code copied!');
+                        } else {
+                          setShowAuthModal(true);
+                        }
+                      }}
+                      className="text-xs font-bold hover:text-emerald-200"
+                    >
+                      COPY
+                    </button>
                   </div>
-                  <button className="w-full py-3 bg-white text-emerald-600 rounded-xl font-bold text-sm">
-                    Share Link
+                  <button 
+                    onClick={() => setActiveTab('rewards')}
+                    className="w-full py-3 bg-white text-emerald-600 rounded-xl font-bold text-sm"
+                  >
+                    Manage Referrals
                   </button>
                 </div>
 
@@ -3616,6 +3732,118 @@ export default function App() {
                   <p className="text-sm text-slate-500">Try selecting a different category.</p>
                 </div>
               )}
+            </div>
+
+            {/* Referral Program Section */}
+            <div className="data-card bg-slate-900 text-white border-none overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full -mr-32 -mt-32 blur-3xl" />
+              <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-emerald-500 rounded-2xl text-white shadow-lg shadow-emerald-500/20">
+                    <Users size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-black italic uppercase tracking-tight">Referral Program</h3>
+                    <p className="text-sm text-slate-400">Invite friends and earn rewards together.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                  <div className="md:col-span-2 space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
+                        <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Your Referral Code</div>
+                        <div className="flex items-center justify-between gap-4">
+                          <code className="text-xl font-black text-emerald-400 tracking-wider">
+                            {referralInfo?.referralCode || 'LOGIN_REQUIRED'}
+                          </code>
+                          <button 
+                            onClick={() => {
+                              if (referralInfo?.referralCode) {
+                                navigator.clipboard.writeText(referralInfo.referralCode);
+                                alert('Code copied!');
+                              } else {
+                                setShowAuthModal(true);
+                              }
+                            }}
+                            className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+                          >
+                            <History size={16} />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
+                        <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Rewards Earned</div>
+                        <div className="text-2xl font-black text-white">
+                          {referralInfo ? formatPrice(referralInfo.totalRewards) : formatPrice(0)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest">How it works</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {[
+                          { step: '01', title: 'Share Code', desc: 'Send your unique code to friends.' },
+                          { step: '02', title: 'They Join', desc: 'They enter your code during signup.' },
+                          { step: '03', title: 'Get Paid', desc: 'You both receive instant bonuses!' }
+                        ].map(item => (
+                          <div key={item.step} className="space-y-1">
+                            <div className="text-emerald-500 font-black text-lg">{item.step}</div>
+                            <div className="font-bold text-sm">{item.title}</div>
+                            <div className="text-xs text-slate-400 leading-relaxed">{item.desc}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/5 rounded-3xl p-6 border border-white/10 flex flex-col justify-between">
+                    <div>
+                      <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">Referral Stats</h4>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-slate-400">Successful Invites</span>
+                          <span className="font-black text-lg">{referralInfo?.referralsCount || 0}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-slate-400">Pending Invites</span>
+                          <span className="font-black text-lg">0</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-slate-400">Conversion Rate</span>
+                          <span className="font-black text-lg text-emerald-400">100%</span>
+                        </div>
+                      </div>
+                    </div>
+                    <button className="w-full mt-6 py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20">
+                      Invite Friends Now
+                    </button>
+                  </div>
+                </div>
+
+                {referralInfo?.referrals?.length > 0 && (
+                  <div className="mt-8 pt-8 border-t border-white/10">
+                    <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">Recent Referrals</h4>
+                    <div className="space-y-2">
+                      {referralInfo.referrals.map((ref: any) => (
+                        <div key={ref.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 font-bold text-xs">
+                              {ref.referred_username[0].toUpperCase()}
+                            </div>
+                            <div>
+                              <div className="text-sm font-bold">{ref.referred_username}</div>
+                              <div className="text-[10px] text-slate-500">{new Date(ref.created_at).toLocaleDateString()}</div>
+                            </div>
+                          </div>
+                          <div className="text-emerald-400 font-black text-sm">+{formatPrice(ref.reward_amount)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         );
@@ -6306,16 +6534,28 @@ export default function App() {
                     />
                   </div>
                   {authMode === 'register' && (
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Email (Optional)</label>
-                      <input 
-                        type="email" 
-                        value={authForm.email}
-                        onChange={(e) => setAuthForm({...authForm, email: e.target.value})}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:border-emerald-500 outline-none" 
-                        placeholder="john@example.com" 
-                      />
-                    </div>
+                    <>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Email (Optional)</label>
+                        <input 
+                          type="email" 
+                          value={authForm.email}
+                          onChange={(e) => setAuthForm({...authForm, email: e.target.value})}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:border-emerald-500 outline-none" 
+                          placeholder="john@example.com" 
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Referral Code (Optional)</label>
+                        <input 
+                          type="text" 
+                          value={authForm.referralCode}
+                          onChange={(e) => setAuthForm({...authForm, referralCode: e.target.value})}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:border-emerald-500 outline-none" 
+                          placeholder="CODE123" 
+                        />
+                      </div>
+                    </>
                   )}
                   
                   <button 
