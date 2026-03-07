@@ -1,0 +1,9 @@
+{
+  "name": "MJ NEXUS: The Unified World Ecosystem",
+  "description": "MJ NEXUS is the world's premier unified ecosystem integrating P2P Betting, Global B2B/B2C Commerce, Secure Home Services (Servisécur), Telemedicine, and AI-Driven Marketing into one seamless, high-performance platform.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera",
+    "microphone"
+  ]
+}

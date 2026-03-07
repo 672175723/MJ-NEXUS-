@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://mjworldbet.com/sitemap.xml
