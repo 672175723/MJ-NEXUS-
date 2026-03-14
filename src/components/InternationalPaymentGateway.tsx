@@ -26,6 +26,9 @@ const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$', icon: <DollarSign className="w-4 h-4" /> },
   { code: 'EUR', name: 'Euro', symbol: '€', icon: <Euro className="w-4 h-4" /> },
   { code: 'GBP', name: 'British Pound', symbol: '£', icon: <Coins className="w-4 h-4" /> },
+  { code: 'XAF', name: 'CFA Franc', symbol: 'FCFA', icon: <Coins className="w-4 h-4" /> },
+  { code: 'NGN', name: 'Naira', symbol: '₦', icon: <Coins className="w-4 h-4" /> },
+  { code: 'AED', name: 'Dirham', symbol: 'DH', icon: <Coins className="w-4 h-4" /> },
   { code: 'CAD', name: 'Canadian Dollar', symbol: 'C$', icon: <DollarSign className="w-4 h-4" /> },
   { code: 'AUD', name: 'Australian Dollar', symbol: 'A$', icon: <DollarSign className="w-4 h-4" /> },
   { code: 'JPY', name: 'Japanese Yen', symbol: '¥', icon: <Coins className="w-4 h-4" /> },
@@ -38,13 +41,29 @@ const PAYMENT_METHODS = [
   { id: 'ideal', name: 'iDEAL', icon: <Globe className="w-5 h-5" />, description: 'Dutch Bank Transfer' },
 ];
 
-export const InternationalPaymentGateway: React.FC = () => {
+interface InternationalPaymentGatewayProps {
+  initialCurrency?: { code: string; symbol: string; name: string };
+  savedMethods?: any[];
+  onSelectSavedMethod?: (method: any) => void;
+}
+
+export const InternationalPaymentGateway: React.FC<InternationalPaymentGatewayProps> = ({ 
+  initialCurrency, 
+  savedMethods = [],
+  onSelectSavedMethod 
+}) => {
   const [amount, setAmount] = useState<string>('100');
-  const [currency, setCurrency] = useState(CURRENCIES[0]);
+  const [currency, setCurrency] = useState(initialCurrency || CURRENCIES[0]);
   const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS[0]);
   const [fees, setFees] = useState<FeeBreakdown | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialCurrency) {
+      setCurrency(initialCurrency);
+    }
+  }, [initialCurrency]);
 
   useEffect(() => {
     calculateFees();
@@ -145,9 +164,16 @@ export const InternationalPaymentGateway: React.FC = () => {
               <div className="relative w-32">
                 <select
                   value={currency.code}
-                  onChange={(e) => setCurrency(CURRENCIES.find(c => c.code === e.target.value) || CURRENCIES[0])}
+                  onChange={(e) => {
+                    const selected = CURRENCIES.find(c => c.code === e.target.value);
+                    if (selected) setCurrency(selected);
+                  }}
                   className="w-full h-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 text-white font-bold appearance-none focus:outline-none focus:ring-2 focus:ring-emerald-500/50 cursor-pointer"
                 >
+                  {/* Ensure initial currency is in the list if not already */}
+                  {!CURRENCIES.find(c => c.code === currency.code) && (
+                    <option value={currency.code}>{currency.code}</option>
+                  )}
                   {CURRENCIES.map(c => (
                     <option key={c.code} value={c.code}>{c.code}</option>
                   ))}
@@ -158,6 +184,34 @@ export const InternationalPaymentGateway: React.FC = () => {
               </div>
             </div>
           </section>
+
+          {/* Saved Methods */}
+          {savedMethods.length > 0 && (
+            <section>
+              <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-3">
+                Saved Payment Methods
+              </label>
+              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                {savedMethods.map((method) => (
+                  <button
+                    key={method.id}
+                    onClick={() => {
+                      if (onSelectSavedMethod) onSelectSavedMethod(method);
+                      // Also update local state to reflect selection if it matches a type
+                      const matchingMethod = PAYMENT_METHODS.find(m => m.id === method.type.toLowerCase());
+                      if (matchingMethod) setPaymentMethod(matchingMethod);
+                    }}
+                    className="flex-shrink-0 flex flex-col items-center gap-2 p-3 rounded-xl border border-zinc-800 bg-zinc-900/50 hover:border-emerald-500 transition-all min-w-[100px]"
+                  >
+                    <div className={`p-2 rounded-lg bg-${method.color}-500/10 text-${method.color}-500`}>
+                      <method.icon size={18} />
+                    </div>
+                    <div className="text-[10px] font-bold text-white truncate w-full text-center">{method.label}</div>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Payment Method */}
           <section>

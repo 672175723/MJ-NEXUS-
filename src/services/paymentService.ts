@@ -16,6 +16,12 @@ export interface MoMoPayoutRequest {
   currency: string;
 }
 
+export interface PayPalPaymentRequest {
+  amount: number;
+  email: string;
+  currency: string;
+}
+
 export const paymentService = {
   async initiateMoMoCollection(data: MoMoPaymentRequest) {
     try {
@@ -33,6 +39,26 @@ export const paymentService = {
       return response.data;
     } catch (error) {
       console.error('Payout initiation failed:', error);
+      throw error;
+    }
+  },
+
+  async initiatePayPalCollection(data: PayPalPaymentRequest) {
+    try {
+      const response = await axios.post('/api/payments/paypal/collect', data);
+      return response.data;
+    } catch (error) {
+      console.error('PayPal collection failed:', error);
+      throw error;
+    }
+  },
+
+  async initiatePayPalPayout(data: PayPalPaymentRequest) {
+    try {
+      const response = await axios.post('/api/payments/paypal/payout', data);
+      return response.data;
+    } catch (error) {
+      console.error('PayPal payout failed:', error);
       throw error;
     }
   }

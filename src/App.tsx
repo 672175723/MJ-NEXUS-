@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Trophy, Users, ShoppingBag, Wallet, MessageSquare, 
-  Shield, TrendingUp, Globe, Settings, Bell, Search,
+  Shield, TrendingUp, TrendingDown, Globe, Settings, Bell, Search,
   Menu, X, ChevronRight, ChevronDown, ChevronUp, Star, Zap, CreditCard, ShieldAlert,
   BarChart3, LayoutDashboard, UserCircle, LogOut,
   MapPin, Cpu, Lock, Store, Plus, Sparkles, Megaphone,
   Award, Target, Coins, Languages, Briefcase, LineChart as LineChartIcon,
   ArrowUpRight, ArrowDownRight, RefreshCw, Bitcoin, CheckCircle, Send,
-  Smartphone, Landmark, Banknote, Handshake,
+  Smartphone, Landmark, Banknote, Handshake, Trash2,
   Wrench, Navigation, Video, FileText, Camera, HardHat, PlaneTakeoff,
   Activity, Eye, Image as ImageIcon, Paperclip, Car, Bike, PhoneCall, AlertTriangle,
   Truck, Package, Gamepad2, ShieldCheck, Mic, Mail, Download, Upload, History, Crown, XCircle, ArrowRight,
@@ -21,7 +21,7 @@ import {
 import { Helmet } from 'react-helmet-async';
 import TechnicianMap from './components/TechnicianMap';
 import { GoogleGenAI } from "@google/genai";
-import { geminiService } from './services/geminiService';
+import { geminiService, withRetry } from './services/geminiService';
 import { Logo } from './components/Logo';
 import { paymentService } from './services/paymentService';
 import HelpPage from './components/HelpPage';
@@ -132,6 +132,10 @@ const MOCK_COUNTRIES = [
   { code: 'SN', name: 'Senegal', flag: '🇸🇳', currency: 'XOF', symbol: 'FCFA', rate: 600 },
   { code: 'FR', name: 'France', flag: '🇫🇷', currency: 'EUR', symbol: '€', rate: 0.92 },
   { code: 'US', name: 'USA', flag: '🇺🇸', currency: 'USD', symbol: '$', rate: 1 },
+  { code: 'GB', name: 'UK', flag: '🇬🇧', currency: 'GBP', symbol: '£', rate: 0.79 },
+  { code: 'CA', name: 'Canada', flag: '🇨🇦', currency: 'CAD', symbol: 'CA$', rate: 1.35 },
+  { code: 'AE', name: 'UAE', flag: '🇦🇪', currency: 'AED', symbol: 'د.إ', rate: 3.67 },
+  { code: 'NG', name: 'Nigeria', flag: '🇳🇬', currency: 'NGN', symbol: '₦', rate: 1500 },
 ];
 
 const MOCK_AUDIT_LOGS = [
@@ -522,6 +526,102 @@ const SecurityGate = ({ children, requiredLevel, currentLevel, isSessionVerified
   );
 };
 
+const SmartUpsell = ({ milestones, onNavigate }: { milestones: any, onNavigate: (tab: string) => void }) => {
+  const [visible, setVisible] = useState(false);
+  const [suggestion, setSuggestion] = useState<any>(null);
+
+  useEffect(() => {
+    const suggestions = [
+      {
+        id: 'betting',
+        condition: !milestones.hasSeenBetting,
+        title: "Maximisez vos gains !",
+        message: "Rejoignez plus de 10 000 parieurs dans nos Groupes de Paris Intelligents. L'IA analyse les meilleures cotes pour vous.",
+        action: "Découvrir les Paris",
+        tab: 'betting',
+        icon: Trophy,
+        color: 'bg-amber-500'
+      },
+      {
+        id: 'marketplace',
+        condition: !milestones.hasSeenMarketplace,
+        title: "Les meilleures affaires sont ici",
+        message: "Notre Marketplace regorge d'opportunités. Investissez vos gains intelligemment dans des produits de qualité.",
+        action: "Aller au Marché",
+        tab: 'marketplace',
+        icon: ShoppingBag,
+        color: 'bg-emerald-500'
+      },
+      {
+        id: 'marketing',
+        condition: !milestones.hasSeenMarketing,
+        title: "Boostez votre visibilité",
+        message: "Vous avez des produits ? Nos outils Marketing IA augmentent vos ventes de 80% en moyenne. Essayez maintenant.",
+        action: "Lancer une Campagne",
+        tab: 'marketing',
+        icon: Megaphone,
+        color: 'bg-indigo-500'
+      },
+      {
+        id: 'mobility',
+        condition: !milestones.hasSeenMobility,
+        title: "Déplacez-vous en toute sécurité",
+        message: "Besoin d'un chauffeur ? Notre service de mobilité est rapide, fiable et sécurisé. Premier trajet à prix réduit.",
+        action: "Réserver un trajet",
+        tab: 'mobility',
+        icon: Car,
+        color: 'bg-rose-500'
+      }
+    ];
+
+    const nextSuggestion = suggestions.find(s => s.condition);
+    if (nextSuggestion) {
+      const timer = setTimeout(() => {
+        setSuggestion(nextSuggestion);
+        setVisible(true);
+      }, 8000); // Show after 8 seconds of inactivity or usage
+      return () => clearTimeout(timer);
+    }
+  }, [milestones]);
+
+  if (!visible || !suggestion) return null;
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 50, scale: 0.9 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      className="fixed bottom-6 right-6 z-50 max-w-sm w-full"
+    >
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+        <div className={`${suggestion.color} p-4 text-white flex justify-between items-center`}>
+          <div className="flex items-center gap-2 font-bold">
+            <suggestion.icon size={20} />
+            {suggestion.title}
+          </div>
+          <button onClick={() => setVisible(false)} className="hover:bg-white/20 p-1 rounded-full transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="p-4">
+          <p className="text-sm text-slate-600 mb-4 leading-relaxed">
+            {suggestion.message}
+          </p>
+          <button 
+            onClick={() => {
+              onNavigate(suggestion.tab);
+              setVisible(false);
+            }}
+            className="w-full py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
+          >
+            {suggestion.action}
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
 const StatCard = ({ label, value, trend, icon: Icon }: any) => (
   <div className="data-card">
     <div className="flex justify-between items-start mb-4">
@@ -568,14 +668,39 @@ export default function App() {
     paymentMethod: 'wallet'
   });
   const [momoPhone, setMomoPhone] = useState('');
-  const [paypalEmail, setPaypalEmail] = useState('');
+  const [paypalEmail, setPaypalEmail] = useState('joellmikamm@gmail.com');
   const [wireDetails, setWireDetails] = useState({ bankName: '', accountName: '', accountNumber: '', swift: '' });
   const [cryptoAddress, setCryptoAddress] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'MoMo' | 'Bank' | 'Card' | 'Crypto' | 'PayPal' | 'Wire'>('MoMo');
-  const [savedPaymentMethods, setSavedPaymentMethods] = useState<any[]>([
-    { id: '1', type: 'MoMo', label: 'Orange Money', value: '690123456', icon: Smartphone, color: 'orange' },
-    { id: '2', type: 'PayPal', label: 'Personal PayPal', value: 'joel@example.com', icon: Send, color: 'blue' }
-  ]);
+  const [savedPaymentMethods, setSavedPaymentMethods] = useState<any[]>(() => {
+    const saved = localStorage.getItem('mj_saved_payment_methods');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Re-map icons because they are functions and can't be stored in JSON
+        return parsed.map((m: any) => ({
+          ...m,
+          icon: m.type === 'MoMo' ? Smartphone : 
+                m.type === 'PayPal' ? Send : 
+                m.type === 'Bank' ? Landmark : 
+                m.type === 'Crypto' ? Bitcoin : CreditCard
+        }));
+      } catch (e) {
+        console.error('Error parsing saved payment methods:', e);
+      }
+    }
+    return [
+      { id: '1', type: 'MoMo', label: 'Orange Money', value: '690123456', icon: Smartphone, color: 'orange' },
+      { id: '2', type: 'PayPal', label: 'Personal PayPal', value: 'joel@example.com', icon: Send, color: 'blue' }
+    ];
+  });
+
+  useEffect(() => {
+    // Save to localStorage whenever savedPaymentMethods changes
+    // We strip the icon function before saving
+    const toSave = savedPaymentMethods.map(({ icon, ...rest }) => rest);
+    localStorage.setItem('mj_saved_payment_methods', JSON.stringify(toSave));
+  }, [savedPaymentMethods]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
   const [newPaymentType, setNewPaymentType] = useState<'MoMo' | 'Bank' | 'Crypto' | 'PayPal'>('MoMo');
@@ -612,6 +737,26 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [referralInfo, setReferralInfo] = useState<any>(null);
+  const [milestones, setMilestones] = useState({
+    hasSeenDashboard: false,
+    hasSeenBetting: false,
+    hasSeenMarketplace: false,
+    hasSeenWallet: false,
+    hasSeenMarketing: false,
+    hasSeenMobility: false,
+  });
+
+  useEffect(() => {
+    setMilestones(prev => ({
+      ...prev,
+      hasSeenDashboard: prev.hasSeenDashboard || activeTab === 'dashboard',
+      hasSeenBetting: prev.hasSeenBetting || activeTab === 'betting',
+      hasSeenMarketplace: prev.hasSeenMarketplace || activeTab === 'marketplace',
+      hasSeenWallet: prev.hasSeenWallet || activeTab === 'wallet',
+      hasSeenMarketing: prev.hasSeenMarketing || activeTab === 'marketing',
+      hasSeenMobility: prev.hasSeenMobility || activeTab === 'mobility',
+    }));
+  }, [activeTab]);
 
   useEffect(() => {
     const hasSeenOnboarding = localStorage.getItem('mj_nexus_onboarding_seen');
@@ -662,6 +807,24 @@ export default function App() {
   
   const currentCurrency = MOCK_COUNTRIES.find(c => c.code === selectedCountry) || MOCK_COUNTRIES[0];
 
+  // Pricing Adaptation Logic
+  // We apply a "Market Reality" discount based on the country's purchasing power
+  // and a "Competitive Edge" discount to stay below competitors.
+  const getMarketDiscount = (countryCode: string) => {
+    const discounts: Record<string, number> = {
+      'CM': 0.15, // 15% discount for local market reality
+      'CI': 0.12,
+      'SN': 0.12,
+      'FR': 0.05,
+      'US': 0.05,
+      'GB': 0.05,
+      'CA': 0.05,
+      'AE': 0.03,
+      'NG': 0.20
+    };
+    return discounts[countryCode] || 0.10;
+  };
+
   // Google Analytics Initialization
   useEffect(() => {
     const measurementId = (import.meta as any).env.VITE_GA_MEASUREMENT_ID;
@@ -680,7 +843,19 @@ export default function App() {
   }, [activeTab]);
 
   const formatPrice = (amount: number) => {
-    const converted = amount * currentCurrency.rate;
+    const marketDiscount = getMarketDiscount(selectedCountry);
+    const adaptedAmount = amount * (1 - marketDiscount);
+    const converted = adaptedAmount * currentCurrency.rate;
+    return `${currentCurrency.symbol}${converted.toLocaleString(undefined, { 
+      minimumFractionDigits: 0, 
+      maximumFractionDigits: 0 
+    })}`;
+  };
+
+  const getCompetitorPrice = (amount: number) => {
+    // Competitors are usually 20% more expensive than MJ NEXUS
+    const competitorAmount = amount * 1.2;
+    const converted = competitorAmount * currentCurrency.rate;
     return `${currentCurrency.symbol}${converted.toLocaleString(undefined, { 
       minimumFractionDigits: 0, 
       maximumFractionDigits: 0 
@@ -688,7 +863,9 @@ export default function App() {
   };
 
   const formatPriceWithDecimals = (amount: number) => {
-    const converted = amount * currentCurrency.rate;
+    const marketDiscount = getMarketDiscount(selectedCountry);
+    const adaptedAmount = amount * (1 - marketDiscount);
+    const converted = adaptedAmount * currentCurrency.rate;
     return `${currentCurrency.symbol}${converted.toLocaleString(undefined, { 
       minimumFractionDigits: 2, 
       maximumFractionDigits: 2 
@@ -947,21 +1124,25 @@ export default function App() {
       setVideoGenerationStatus('Initialisation de la génération Veo...');
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
-      let operation = await ai.models.generateVideos({
-        model: 'veo-3.1-fast-generate-preview',
-        prompt: videoPrompt,
-        config: {
-          numberOfVideos: 1,
-          resolution: '720p',
-          aspectRatio: '16:9'
-        }
+      let operation = await withRetry(async () => {
+        return await ai.models.generateVideos({
+          model: 'veo-3.1-fast-generate-preview',
+          prompt: videoPrompt,
+          config: {
+            numberOfVideos: 1,
+            resolution: '720p',
+            aspectRatio: '16:9'
+          }
+        });
       });
 
       setVideoGenerationStatus('Génération de la vidéo en cours (cela peut prendre quelques minutes)...');
       
       while (!operation.done) {
         await new Promise(resolve => setTimeout(resolve, 10000));
-        operation = await ai.operations.getVideosOperation({ operation: operation });
+        operation = await withRetry(async () => {
+          return await ai.operations.getVideosOperation({ operation: operation });
+        });
       }
 
       const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
@@ -1244,8 +1425,14 @@ export default function App() {
             phoneNumber: momoPhone,
             country: userLocation.country,
             currency: 'XAF',
-            email: 'joelmikamd@gmail.com',
+            email: 'joellmikamm@gmail.com',
             name: 'Joël Mikam'
+          });
+        } else if (paymentMethod === 'PayPal') {
+          res = await paymentService.initiatePayPalCollection({
+            amount: parseFloat(momoAmount),
+            email: paypalEmail,
+            currency: 'USD'
           });
         } else {
           // Mocking other methods
@@ -1262,6 +1449,12 @@ export default function App() {
             phoneNumber: momoPhone,
             country: userLocation.country,
             currency: 'XAF'
+          });
+        } else if (paymentMethod === 'PayPal') {
+          res = await paymentService.initiatePayPalPayout({
+            amount: parseFloat(momoAmount),
+            email: paypalEmail,
+            currency: 'USD'
           });
         } else {
           // Mocking other methods
@@ -1296,10 +1489,37 @@ export default function App() {
   }, []);
 
   const handleAddPaymentMethod = () => {
+    // Validation
+    if (!newPaymentLabel.trim()) {
+      alert('Please enter a label for this payment method.');
+      return;
+    }
+
+    if (newPaymentType === 'MoMo' || newPaymentType === 'PayPal') {
+      if (!newPaymentValue.trim()) {
+        alert(`Please enter your ${newPaymentType === 'MoMo' ? 'phone number' : 'email'}.`);
+        return;
+      }
+    }
+
+    if (newPaymentType === 'Bank') {
+      if (!newBankDetails.bankName || !newBankDetails.accountNumber) {
+        alert('Please enter both bank name and account number.');
+        return;
+      }
+    }
+
+    if (newPaymentType === 'Crypto') {
+      if (!newCryptoDetails.address) {
+        alert('Please enter your crypto wallet address.');
+        return;
+      }
+    }
+
     let newMethod: any = {
       id: Date.now().toString(),
       type: newPaymentType,
-      label: newPaymentLabel || `${newPaymentType} Account`,
+      label: newPaymentLabel,
     };
 
     if (newPaymentType === 'MoMo') {
@@ -1318,6 +1538,13 @@ export default function App() {
     setNewPaymentValue('');
     setNewBankDetails({ bankName: '', accountName: '', accountNumber: '', swift: '' });
     setNewCryptoDetails({ network: 'Ethereum', address: '' });
+    
+    // Track Success
+    ReactGA.event({
+      category: 'Wallet',
+      action: 'Add Payment Method',
+      label: newPaymentType
+    });
   };
 
   const removePaymentMethod = (id: string) => {
@@ -1378,6 +1605,81 @@ export default function App() {
                 </div>
                 <div className="text-xs font-bold">MJ Health</div>
               </button>
+              <button onClick={() => setShowAddPaymentModal(true)} className="p-4 bg-white rounded-2xl border border-slate-100 hover:border-emerald-500 transition-all text-center group">
+                <div className="w-10 h-10 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                  <Plus size={20} />
+                </div>
+                <div className="text-xs font-bold">Paiement</div>
+              </button>
+            </div>
+
+            {/* Smart Discovery Section */}
+            <div className="data-card bg-gradient-to-br from-slate-900 to-slate-800 text-white border-none overflow-hidden relative">
+              <div className="absolute top-0 right-0 p-8 opacity-10">
+                <Sparkles size={120} />
+              </div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="p-1.5 bg-emerald-500 rounded-lg">
+                    <Zap size={16} className="text-white" />
+                  </div>
+                  <h3 className="text-lg font-bold">Suggestions MJ Intelligence</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {!milestones.hasSeenBetting && (
+                    <div className="p-4 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-colors cursor-pointer group" onClick={() => setActiveTab('betting')}>
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-amber-500/20 rounded-lg text-amber-500">
+                          <Trophy size={18} />
+                        </div>
+                        <h4 className="font-bold text-sm">Paris Intelligents</h4>
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed group-hover:text-white transition-colors">
+                        Rejoignez la communauté et transformez vos prédictions en profits réels.
+                      </p>
+                    </div>
+                  )}
+                  {!milestones.hasSeenMarketplace && (
+                    <div className="p-4 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-colors cursor-pointer group" onClick={() => setActiveTab('marketplace')}>
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-500">
+                          <ShoppingBag size={18} />
+                        </div>
+                        <h4 className="font-bold text-sm">Marketplace Global</h4>
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed group-hover:text-white transition-colors">
+                        Découvrez des produits exclusifs et des offres imbattables dès aujourd'hui.
+                      </p>
+                    </div>
+                  )}
+                  {!milestones.hasSeenMarketing && (
+                    <div className="p-4 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-colors cursor-pointer group" onClick={() => setActiveTab('marketing')}>
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-500">
+                          <Megaphone size={18} />
+                        </div>
+                        <h4 className="font-bold text-sm">Marketing IA</h4>
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed group-hover:text-white transition-colors">
+                        Boostez vos ventes avec nos outils d'analyse et de promotion automatisés.
+                      </p>
+                    </div>
+                  )}
+                  {!milestones.hasSeenMobility && (
+                    <div className="p-4 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-colors cursor-pointer group" onClick={() => setActiveTab('mobility')}>
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-rose-500/20 rounded-lg text-rose-500">
+                          <Car size={18} />
+                        </div>
+                        <h4 className="font-bold text-sm">Mobilité Sécurisée</h4>
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed group-hover:text-white transition-colors">
+                        Besoin d'un trajet ? Nos chauffeurs certifiés vous attendent.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1624,6 +1926,27 @@ export default function App() {
                 <Gamepad2 size={16} />
                 Gaming Arena
               </button>
+            </div>
+
+            {/* Betting Price Advantage Banner */}
+            <div className="bg-gradient-to-r from-amber-500 to-orange-600 rounded-2xl p-4 text-white shadow-lg relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                <TrendingUp size={80} />
+              </div>
+              <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
+                    <Trophy size={24} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg">Les Meilleures Cotes du Marché</h3>
+                    <p className="text-xs opacity-90">Grâce à notre modèle P2P, nous éliminons les marges des bookmakers traditionnels. Vous gagnez plus sur MJ NEXUS.</p>
+                  </div>
+                </div>
+                <div className="px-4 py-2 bg-white text-amber-600 rounded-xl font-black text-xs uppercase tracking-widest shadow-sm">
+                  +15% HIGHER PAYOUTS
+                </div>
+              </div>
             </div>
 
             {bettingSubTab === 'matches' && (
@@ -4027,7 +4350,7 @@ export default function App() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
                 <h2 className="text-3xl font-black italic">MJ Global Mall</h2>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex flex-wrap items-center gap-2 mt-1">
                   <div className="flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] font-bold">
                     <Shield size={10} /> TRADE ASSURANCE
                   </div>
@@ -4036,6 +4359,9 @@ export default function App() {
                   </div>
                   <div className="flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-[10px] font-bold">
                     <PlaneTakeoff size={10} /> DRONE DELIVERY
+                  </div>
+                  <div className="flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-bold">
+                    <Zap size={10} /> BEST PRICE GUARANTEE
                   </div>
                 </div>
               </div>
@@ -4057,6 +4383,27 @@ export default function App() {
                   <Store size={16} />
                   Sell on MJ NEXUS
                 </button>
+              </div>
+            </div>
+
+            {/* Price Adaptation Banner */}
+            <div className="bg-gradient-to-r from-emerald-600 to-blue-600 rounded-2xl p-4 text-white shadow-lg relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                <Globe size={80} />
+              </div>
+              <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
+                    <TrendingDown size={24} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg">Adaptation Locale des Prix</h3>
+                    <p className="text-xs opacity-90">Nous ajustons nos tarifs aux réalités de votre marché ({currentCurrency.name}) pour garantir l'accessibilité à tous.</p>
+                  </div>
+                </div>
+                <div className="px-4 py-2 bg-white text-emerald-600 rounded-xl font-black text-xs uppercase tracking-widest shadow-sm">
+                  -{(getMarketDiscount(selectedCountry) * 100).toFixed(0)}% OFF TODAY
+                </div>
               </div>
             </div>
 
@@ -4104,9 +4451,14 @@ export default function App() {
                   </div>
 
                   <div className="mt-auto">
-                    <div className="flex items-baseline gap-1 mb-1">
-                      <span className="text-xl font-black text-slate-900">{formatPrice(product.price)}</span>
-                      <span className="text-[10px] text-slate-400">/ piece</span>
+                    <div className="flex flex-col mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl font-black text-slate-900">{formatPrice(product.price)}</span>
+                        <span className="text-[10px] text-slate-400 line-through">{getCompetitorPrice(product.price)}</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 uppercase tracking-tighter">
+                        <Zap size={8} /> MJ Best Price
+                      </div>
                     </div>
                     <div className="text-[10px] font-bold text-slate-500 mb-4">
                       Min. Order: {product.moq} {product.moq > 1 ? 'pieces' : 'piece'}
@@ -5123,8 +5475,99 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Saved Payment Methods Section */}
+              <div className="data-card">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3 text-slate-900">
+                    <CreditCard size={20} className="text-emerald-500" />
+                    <h3 className="font-bold">Méthodes de Paiement Enregistrées</h3>
+                  </div>
+                  <button 
+                    onClick={() => setShowAddPaymentModal(true)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-all border border-emerald-100"
+                  >
+                    <Plus size={14} />
+                    Ajouter
+                  </button>
+                </div>
+
+                {savedPaymentMethods.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {savedPaymentMethods.map((method) => (
+                      <div 
+                        key={method.id} 
+                        className="group relative p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-emerald-500/30 transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={`p-3 rounded-xl bg-${method.color}-100 text-${method.color}-600`}>
+                            <method.icon size={20} />
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-sm font-bold text-slate-900">{method.label}</div>
+                            <div className="text-xs text-slate-500 font-mono">{method.value}</div>
+                          </div>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removePaymentMethod(method.id);
+                            }}
+                            className="p-2 text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                        <div className="mt-3 flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{method.type}</span>
+                          <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+                            <ShieldCheck size={10} />
+                            Verified
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm">
+                      <CreditCard size={20} className="text-slate-300" />
+                    </div>
+                    <p className="text-sm text-slate-500 font-medium">Aucune méthode enregistrée</p>
+                    <button 
+                      onClick={() => setShowAddPaymentModal(true)}
+                      className="mt-4 text-xs font-bold text-emerald-600 hover:underline"
+                    >
+                      Ajouter ma première méthode
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Wallet Market Adaptation Banner */}
+              <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-center gap-4">
+                <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl">
+                  <Globe size={20} />
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-bold text-slate-900">Taux de Change Adapté</h4>
+                  <p className="text-[10px] text-slate-500">Nous utilisons des taux de change préférentiels pour {currentCurrency.name} afin de minimiser vos frais de transaction internationaux.</p>
+                </div>
+                <div className="text-[10px] font-black text-emerald-600 bg-emerald-100 px-2 py-1 rounded uppercase">
+                  Best Rate
+                </div>
+              </div>
+
               {/* International Payment Gateway */}
-              <InternationalPaymentGateway />
+              <InternationalPaymentGateway 
+                initialCurrency={currentCurrency} 
+                savedMethods={savedPaymentMethods}
+                onSelectSavedMethod={(method) => {
+                  setPaymentMethod(method.type);
+                  if (method.type === 'MoMo') setMomoPhone(method.value);
+                  if (method.type === 'PayPal') setPaypalEmail(method.value);
+                  if (method.type === 'Bank') setWireDetails(method.details);
+                  if (method.type === 'Crypto') setCryptoAddress(method.details.address);
+                }}
+              />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="data-card">
@@ -5335,13 +5778,13 @@ export default function App() {
                             <span className="text-xs font-bold px-2 py-1 bg-slate-100 rounded-lg text-slate-600">{bet.pick}</span>
                           </td>
                           <td className="px-6 py-4 text-sm font-bold text-slate-900">
-                            ${bet.stake.toLocaleString()}
+                            {formatPrice(bet.stake)}
                           </td>
                           <td className="px-6 py-4 text-sm font-black text-emerald-600">
                             {bet.odds.toFixed(2)}
                           </td>
                           <td className="px-6 py-4 text-sm font-black text-slate-900">
-                            ${bet.potentialWin.toLocaleString()}
+                            {formatPrice(bet.potentialWin)}
                           </td>
                           <td className="px-6 py-4">
                             <div className={`inline-flex px-2 py-0.5 rounded text-[10px] font-black uppercase ${
@@ -6594,9 +7037,15 @@ export default function App() {
                 exit={{ scale: 0.9, opacity: 0 }}
                 className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl"
               >
-                <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                  <h3 className="text-xl font-bold">Add Payment Method</h3>
-                  <button onClick={() => setShowAddPaymentModal(false)} className="text-slate-400 hover:text-slate-600">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900">Add Payment Method</h3>
+                    <div className="flex items-center gap-1 text-[10px] text-emerald-600 font-bold uppercase mt-0.5">
+                      <ShieldCheck size={12} />
+                      Secure Encrypted Storage
+                    </div>
+                  </div>
+                  <button onClick={() => setShowAddPaymentModal(false)} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-full transition-all">
                     <X size={20} />
                   </button>
                 </div>
@@ -7365,7 +7814,7 @@ export default function App() {
                         Emails
                       </h4>
                       <div className="space-y-2 text-xs">
-                        {['joelmikamd@gmail.com', 'joelmikamd1@gmail.com', 'contact@groupetansaah.com', 'joellmikamm@gmail.com'].map(email => (
+                        {['joellmikamm@gmail.com', 'joelmikamd@gmail.com', 'joelmikamd1@gmail.com', 'contact@groupetansaah.com'].map(email => (
                           <div key={email} className="p-2 bg-slate-50 rounded-lg font-mono truncate">{email}</div>
                         ))}
                       </div>
@@ -7601,6 +8050,7 @@ export default function App() {
             Besoin d'aide ? Je suis là !
           </div>
         </motion.button>
+        <SmartUpsell milestones={milestones} onNavigate={setActiveTab} />
       </main>
     </div>
   );

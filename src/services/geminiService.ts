@@ -6,7 +6,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 const cache: Record<string, { data: any, timestamp: number }> = {};
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 2000): Promise<T> {
+export async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 2000): Promise<T> {
   try {
     return await fn();
   } catch (error: any) {
@@ -75,7 +75,12 @@ export const geminiService = {
           }
         }
       });
-      return JSON.parse(response.text || "{}");
+      try {
+        return JSON.parse(response.text || "{}");
+      } catch (e) {
+        console.error("Failed to parse Gemini response:", e);
+        return {};
+      }
     });
   },
 
@@ -97,7 +102,12 @@ export const geminiService = {
           }
         }
       });
-      return JSON.parse(response.text || "{}");
+      try {
+        return JSON.parse(response.text || "{}");
+      } catch (e) {
+        console.error("Failed to parse Gemini response:", e);
+        return {};
+      }
     });
   },
 
@@ -120,7 +130,12 @@ export const geminiService = {
           }
         }
       });
-      return JSON.parse(response.text || "{}");
+      try {
+        return JSON.parse(response.text || "{}");
+      } catch (e) {
+        console.error("Failed to parse Gemini response:", e);
+        return {};
+      }
     });
   },
 
@@ -145,7 +160,12 @@ export const geminiService = {
           }
         }
       });
-      return JSON.parse(response.text || "[]");
+      try {
+        return JSON.parse(response.text || "[]");
+      } catch (e) {
+        console.error("Failed to parse Gemini response:", e);
+        return [];
+      }
     });
   },
 
