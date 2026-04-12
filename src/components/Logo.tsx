@@ -18,7 +18,7 @@ export const Logo = ({ className = "", showText = true, size = "md", light = fal
     <div className={`flex items-center gap-3 ${className}`} aria-label="MJ NEXUS Logo">
       <motion.div 
         whileHover={{ scale: 1.05, rotate: 5 }}
-        className={`${iconSizes[size]} bg-gradient-to-br from-indigo-600 via-emerald-500 to-emerald-400 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-emerald-500/20 relative overflow-hidden`}
+        className={`${iconSizes[size]} bg-slate-900 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-emerald-500/10 relative overflow-hidden`}
       >
         <div className="absolute inset-0 opacity-30">
           <svg viewBox="0 0 100 100" className="w-full h-full">
@@ -33,7 +33,7 @@ export const Logo = ({ className = "", showText = true, size = "md", light = fal
           <path d="M12 22V12" />
           <path d="M2 17l10 5 10-5" />
           <path d="M2 7l10 5 10-5" />
-          <circle cx="12" cy="12" r="3" fill="currentColor" fillOpacity="0.3" />
+          <circle cx="12" cy="12" r="3" className="fill-emerald-500/30" />
         </svg>
       </motion.div>
       

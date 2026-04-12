@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Activity, Cpu, Zap, Globe, ShieldCheck } from 'lucide-react';
 import { motion } from 'motion/react';
 
-export const SystemHealth: React.FC = () => {
+const SystemHealth: React.FC = () => {
   const [metrics, setMetrics] = useState({
     cpu: 12,
     memory: 45,
@@ -74,3 +74,5 @@ export const SystemHealth: React.FC = () => {
     </div>
   );
 };
+
+export default SystemHealth;

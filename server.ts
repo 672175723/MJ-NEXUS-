@@ -2,7 +2,6 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import cors from "cors";
 import axios from "axios";
-import Stripe from "stripe";
 import dotenv from "dotenv";
 import Database from "better-sqlite3";
 
@@ -17,6 +16,7 @@ db.exec(`
     username TEXT UNIQUE,
     email TEXT UNIQUE,
     password TEXT,
+    role TEXT DEFAULT 'client',
     balance REAL DEFAULT 0,
     referral_code TEXT UNIQUE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -34,10 +34,6 @@ db.exec(`
   );
 `);
 
-const stripe = process.env.STRIPE_SECRET_KEY 
-  ? new Stripe(process.env.STRIPE_SECRET_KEY) 
-  : null;
-
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -45,22 +41,59 @@ async function startServer() {
   app.use(cors());
   app.use(express.json());
 
+  // --- SEO Routes ---
+  app.get("/robots.txt", (req, res) => {
+    res.type("text/plain");
+    res.send("User-agent: *\nAllow: /\nSitemap: https://mjnexus.com/sitemap.xml");
+  });
+
+  app.get("/sitemap.xml", (req, res) => {
+    res.type("application/xml");
+    const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://mjnexus.com/</loc><priority>1.0</priority><changefreq>daily</changefreq></url>
+  <url><loc>https://mjnexus.com/betting</loc><priority>0.9</priority></url>
+  <url><loc>https://mjnexus.com/marketplace</loc><priority>0.9</priority></url>
+  <url><loc>https://mjnexus.com/logistics</loc><priority>0.8</priority></url>
+  <url><loc>https://mjnexus.com/servisecur</loc><priority>0.8</priority></url>
+  <url><loc>https://mjnexus.com/trading</loc><priority>0.7</priority></url>
+</urlset>`;
+    res.send(sitemap);
+  });
+
   // --- Auth & Referral System ---
 
+  // Bootstrap default admin
+  try {
+    const adminEmail = "joellmikamm@gmail.com";
+    const existingAdmin = db.prepare("SELECT * FROM users WHERE email = ?").get(adminEmail);
+    if (!existingAdmin) {
+      const adminReferralCode = "ADMIN001";
+      db.prepare(`
+        INSERT INTO users (username, email, password, balance, referral_code, role)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run("admin", adminEmail, "admin123", 1000000, adminReferralCode, "admin");
+      console.log("Default admin created: admin / admin123");
+    }
+  } catch (e) {
+    console.error("Error bootstrapping admin:", e);
+  }
+
   app.post("/api/auth/signup", (req, res) => {
-    const { username, email, password, referralCode } = req.body;
+    const { username, email, password, referralCode, role } = req.body;
 
     try {
       // Generate a unique referral code for the new user
       const newUserReferralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
       const insertUser = db.prepare(`
-        INSERT INTO users (username, email, password, balance, referral_code)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO users (username, email, password, balance, referral_code, role)
+        VALUES (?, ?, ?, ?, ?, ?)
       `);
 
       const initialBalance = 0;
-      const result = insertUser.run(username, email, password, initialBalance, newUserReferralCode);
+      const userRole = role || 'client';
+      const result = insertUser.run(username, email, password, initialBalance, newUserReferralCode, userRole);
       const userId = result.lastInsertRowid;
 
       let rewardMessage = "";
@@ -96,6 +129,7 @@ async function startServer() {
           id: userId,
           username,
           email,
+          role: userRole,
           referralCode: newUserReferralCode,
           balance: referralCode ? 200 : 0
         }
@@ -108,7 +142,8 @@ async function startServer() {
 
   app.post("/api/auth/login", (req, res) => {
     const { email, password } = req.body;
-    const user = db.prepare("SELECT * FROM users WHERE email = ? AND password = ?").get(email, password) as any;
+    // Allow login by email OR username (which is the phone number in our case)
+    const user = db.prepare("SELECT * FROM users WHERE (email = ? OR username = ?) AND password = ?").get(email, email, password) as any;
 
     if (user) {
       res.json({
@@ -117,6 +152,7 @@ async function startServer() {
           id: user.id,
           username: user.username,
           email: user.email,
+          role: user.role,
           balance: user.balance,
           referralCode: user.referral_code
         }
@@ -154,141 +190,20 @@ async function startServer() {
     }
   });
 
-  // --- International Payment Gateway (Stripe) ---
-
-  app.post("/api/payments/stripe/create-checkout-session", async (req, res) => {
-    const { amount, currency, paymentMethodTypes, successUrl, cancelUrl } = req.body;
-
-    if (!stripe) {
-      return res.status(500).json({ 
-        status: "error", 
-        message: "Stripe is not configured. Please set STRIPE_SECRET_KEY in environment variables." 
-      });
-    }
-
-    try {
-      // Calculate fees for transparency (simulated)
-      const processingFeePercent = 0.029; // 2.9%
-      const fixedFee = 0.30; // $0.30
-      const internationalFeePercent = 0.01; // 1% for international
-      const conversionFeePercent = 0.01; // 1% for conversion
-
-      const totalFees = (amount * (processingFeePercent + internationalFeePercent + conversionFeePercent)) + fixedFee;
-      
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: paymentMethodTypes || ['card'],
-        line_items: [
-          {
-            price_data: {
-              currency: currency.toLowerCase(),
-              product_data: {
-                name: 'MJ WorldBet Deposit',
-                description: `Deposit for MJ WorldBet account. Includes international transaction fees.`,
-              },
-              unit_amount: Math.round(amount * 100), // Stripe expects cents
-            },
-            quantity: 1,
-          },
-        ],
-        mode: 'payment',
-        success_url: successUrl || `${req.headers.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: cancelUrl || `${req.headers.origin}/payment-cancel`,
-        metadata: {
-          amount: amount.toString(),
-          currency: currency,
-          fees: totalFees.toFixed(2),
-        }
-      });
-
-      res.json({ 
-        status: "success", 
-        id: session.id, 
-        url: session.url,
-        fees: {
-          processing: (amount * processingFeePercent).toFixed(2),
-          international: (amount * internationalFeePercent).toFixed(2),
-          conversion: (amount * conversionFeePercent).toFixed(2),
-          fixed: fixedFee.toFixed(2),
-          total: totalFees.toFixed(2)
-        }
-      });
-    } catch (error: any) {
-      console.error("Stripe Checkout Error:", error);
-      res.status(500).json({ status: "error", message: error.message });
-    }
-  });
-
-  // --- Mobile Money API Endpoints ---
-
-  // 1. Initiate Payment (Collect money from user)
+  // --- Mobile Money API Endpoints (Simulated) ---
   app.post("/api/payments/momo/collect", async (req, res) => {
-    const { amount, phoneNumber, country, currency, email, name } = req.body;
-
-    try {
-      // This is where you would call an aggregator like Flutterwave
-      // Example for Flutterwave:
-      /*
-      const response = await axios.post('https://api.flutterwave.com/v3/charges?type=mobile_money_ghana', {
-        amount,
-        currency,
-        phone_number: phoneNumber,
-        email,
-        tx_ref: `momo-${Date.now()}`,
-        // ... other params
-      }, {
-        headers: { Authorization: `Bearer ${process.env.PAYMENT_PROVIDER_SECRET_KEY}` }
-      });
-      */
-
-      console.log(`[MoMo] Initiating collection of ${amount} ${currency} from ${phoneNumber} (${country})`);
-      console.log(`[MoMo] Target Official Accounts: UBA(14011000529), MTN(+237699932926), OM(+237672175723)`);
-      
-      // Simulate successful initiation
-      res.json({
-        status: "success",
-        message: "Payment initiated. Please check your phone for the USSD prompt.",
-        transactionId: `TX-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
-        provider: "MJ-Aggregator"
-      });
-    } catch (error) {
-      console.error("MoMo Collection Error:", error);
-      res.status(500).json({ status: "error", message: "Failed to initiate payment" });
-    }
+    res.json({ status: "success", message: "Contactez-nous sur WhatsApp pour finaliser le paiement." });
   });
 
-  // 2. Send Money (Payout to user/winner)
   app.post("/api/payments/momo/payout", async (req, res) => {
-    const { amount, phoneNumber, country, currency, bankCode } = req.body;
-
-    try {
-      console.log(`[MoMo] Initiating payout of ${amount} ${currency} to ${phoneNumber} (${country})`);
-      
-      // Simulate successful payout
-      res.json({
-        status: "success",
-        message: "Payout processed successfully.",
-        transferId: `TR-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
-      });
-    } catch (error) {
-      console.error("MoMo Payout Error:", error);
-      res.status(500).json({ status: "error", message: "Failed to process payout" });
-    }
+    res.json({ status: "success", message: "Contactez-nous sur WhatsApp pour finaliser le retrait." });
   });
 
-  // 3. Webhook for Payment Confirmation
   app.post("/api/payments/webhook", (req, res) => {
-    const signature = req.headers["x-mj-signature"];
-    // Verify signature...
-    
-    const event = req.body;
-    console.log("[Webhook] Received payment event:", event);
-    
-    // Update user balance in DB...
-    
     res.status(200).send("OK");
   });
 
-  // --- Vite Middleware for Development ---
+  // Vite Middleware for Development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -302,9 +217,13 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`MJ NEXUS Server running on http://localhost:${PORT}`);
-  });
+  if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`MJ NEXUS Server running on http://localhost:${PORT}`);
+    });
+  }
+
+  return app;
 }
 
-startServer();
+export const appPromise = startServer();

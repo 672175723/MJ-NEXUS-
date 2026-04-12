@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Shield, Lock, Eye, Trash2, Download, CheckCircle, AlertCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 
-export const PrivacyCenter: React.FC = () => {
+const PrivacyCenter: React.FC = () => {
   const [settings, setSettings] = useState({
     tracking: true,
     personalizedAds: false,
@@ -128,6 +128,8 @@ export const PrivacyCenter: React.FC = () => {
     </div>
   );
 };
+
+export default PrivacyCenter;
 
 const RefreshCw = ({ size, className }: any) => (
   <svg 

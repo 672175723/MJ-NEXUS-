@@ -6,6 +6,61 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 const cache: Record<string, { data: any, timestamp: number }> = {};
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+function getFallbackMatches() {
+  return [
+    {
+      id: "fb-1",
+      sport: "Football",
+      league: "Champions League",
+      homeTeam: "Real Madrid",
+      awayTeam: "Manchester City",
+      poolAmount: 1250000,
+      participants: 4520,
+      startTime: "20:45",
+      status: "Live",
+      minute: 65,
+      odds: { h: 2.45, d: 3.20, a: 2.85 }
+    },
+    {
+      id: "fb-2",
+      sport: "Football",
+      league: "Premier League",
+      homeTeam: "Arsenal",
+      awayTeam: "Liverpool",
+      poolAmount: 850000,
+      participants: 3100,
+      startTime: "17:30",
+      status: "Upcoming",
+      odds: { h: 2.10, d: 3.40, a: 3.10 }
+    },
+    {
+      id: "bk-1",
+      sport: "Basketball",
+      league: "NBA",
+      homeTeam: "LA Lakers",
+      awayTeam: "Golden State Warriors",
+      poolAmount: 540000,
+      participants: 2150,
+      startTime: "03:00",
+      status: "Upcoming",
+      odds: { h: 1.85, a: 1.95 }
+    },
+    {
+      id: "es-1",
+      sport: "E-Sports",
+      league: "League of Legends",
+      homeTeam: "T1",
+      awayTeam: "Gen.G",
+      poolAmount: 320000,
+      participants: 1800,
+      startTime: "12:00",
+      status: "Live",
+      minute: 25,
+      odds: { h: 1.65, a: 2.20 }
+    }
+  ];
+}
+
 export async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 2000): Promise<T> {
   try {
     return await fn();
@@ -29,7 +84,7 @@ export const geminiService = {
 
     const result = await withRetry(async () => {
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-flash-latest",
         contents: `Analyze this sports event and provide betting insights, probabilities, and risk assessment: ${matchDetails}`,
         config: {
           responseMimeType: "application/json",
@@ -49,8 +104,11 @@ export const geminiService = {
         return JSON.parse(response.text || "{}");
       } catch (e) {
         console.error("Failed to parse Gemini response:", e);
-        return {};
+        return { prediction: "Analyse indisponible", confidence: 0, riskLevel: "Inconnu", keyFactors: ["Erreur de service"] };
       }
+    }).catch(err => {
+      console.error("Gemini API error in getBettingInsights:", err);
+      return { prediction: "Analyse indisponible", confidence: 0, riskLevel: "Inconnu", keyFactors: ["Erreur de service"] };
     });
 
     cache[cacheKey] = { data: result, timestamp: Date.now() };
@@ -60,7 +118,7 @@ export const geminiService = {
   async optimizeProductListing(productName: string, description: string) {
     return withRetry(async () => {
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-flash-latest",
         contents: `Optimize this product listing for better sales. Provide an improved title, a compelling description, and suggested tags. Product: ${productName}, Current Description: ${description}`,
         config: {
           responseMimeType: "application/json",
@@ -87,7 +145,7 @@ export const geminiService = {
   async getAdTargetingInsights(productDetails: string) {
     return withRetry(async () => {
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-flash-latest",
         contents: `Suggest the best target audience and keywords for advertising this product: ${productDetails}`,
         config: {
           responseMimeType: "application/json",
@@ -114,7 +172,7 @@ export const geminiService = {
   async getCommerceInsights(productDetails: string) {
     return withRetry(async () => {
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-flash-latest",
         contents: `Analyze this product for marketplace commerce insights: ${productDetails}. Provide market demand analysis, suggested pricing, competitive advantages, and seasonal trends.`,
         config: {
           responseMimeType: "application/json",
@@ -142,7 +200,7 @@ export const geminiService = {
   async getSmartGroupSuggestions(userInterests: string) {
     return withRetry(async () => {
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-flash-latest",
         contents: `Based on these user interests: ${userInterests}, suggest 3 "Smart Betting Groups" with catchy names, target sports, and a brief description of the strategy they use.`,
         config: {
           responseMimeType: "application/json",
@@ -177,7 +235,7 @@ export const geminiService = {
 
     const result = await withRetry(async () => {
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-flash-latest",
         contents: `Generate a list of 8-10 realistic upcoming and live sports matches for ${currentDate}. Include Football (Champions League, Premier League), Basketball (NBA), Tennis, and E-Sports. Some matches should be currently live, others upcoming. For each match, provide: id, sport, league, homeTeam, awayTeam, poolAmount (number), participants (number), startTime (HH:mm), status ('Upcoming' or 'Live'), minute (number, only if Live), and odds (object with h, d, a).`,
         config: {
           responseMimeType: "application/json",
@@ -222,8 +280,11 @@ export const geminiService = {
         return parsed.matches || [];
       } catch (e) {
         console.error("Failed to parse Gemini response:", e);
-        return [];
+        return getFallbackMatches();
       }
+    }).catch(err => {
+      console.error("Gemini API error in getLiveMatches:", err);
+      return getFallbackMatches();
     });
 
     cache[cacheKey] = { data: result, timestamp: Date.now() };
@@ -233,7 +294,7 @@ export const geminiService = {
   async chatSupport(message: string, history: any[]) {
     return withRetry(async () => {
       const chat = ai.chats.create({
-        model: "gemini-3-flash-preview",
+        model: "gemini-flash-latest",
         config: {
           systemInstruction: "You are MJ NEXUS AI assistant. You help users with betting strategies, platform navigation, and general questions about our ecosystem (Marketplace, Servisécur, Crypto). Be professional, helpful, and emphasize the unified nature of our services."
         }
@@ -246,7 +307,7 @@ export const geminiService = {
   async getHelpAssistant(message: string, history: any[]) {
     return withRetry(async () => {
       const chat = ai.chats.create({
-        model: "gemini-3-flash-preview",
+        model: "gemini-flash-latest",
         config: {
           systemInstruction: `You are the MJ NEXUS Help Center Expert. Your goal is to provide detailed, accurate information about all features of the MJ NEXUS platform. 
 

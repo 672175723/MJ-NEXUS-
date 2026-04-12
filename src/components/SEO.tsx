@@ -11,12 +11,12 @@ interface SEOProps {
 }
 
 export const SEO: React.FC<SEOProps> = ({
-  title = "MJ NEXUS | The Unified World of Services",
-  description = "MJ Nexus integrates Betting, Global Commerce, Secure Home Services, and Financial Trading into one powerful ecosystem. The ultimate platform for the modern world.",
+  title = "MJ NEXUS : Votre Partenaire Business à Douala",
+  description = "MJ NEXUS est l'écosystème unifié leader à Douala, Cameroun. High-Tech, Énergie Solaire, Écologie et Logistique. Qualité et Innovation.",
   image = "https://picsum.photos/seed/mjnexus/1200/630",
   url = "https://mjnexus.com",
   type = "website",
-  keywords = "betting, commerce, home services, trading, crypto, p2p, marketplace, global services, MJ Nexus"
+  keywords = "MJ NEXUS, business douala, high-tech cameroun, oraimo douala, hoco cameroun, énergie solaire douala, bio-charbon cameroun, pavés écologiques douala, logistique douala, livraison express cameroun, Joël Mikam, business cameroun, investissement douala"
 }) => {
   const siteName = "MJ NEXUS";
 
@@ -27,6 +27,8 @@ export const SEO: React.FC<SEOProps> = ({
       <meta name="description" content={description} />
       <meta name="keywords" content={keywords} />
       <link rel="canonical" href={url} />
+      <meta name="geo.region" content="CM" />
+      <meta name="geo.placename" content="Douala, Yaoundé" />
 
       {/* Open Graph / Facebook */}
       <meta property="og:type" content={type} />
@@ -35,6 +37,8 @@ export const SEO: React.FC<SEOProps> = ({
       <meta property="og:description" content={description} />
       <meta property="og:image" content={image} />
       <meta property="og:site_name" content={siteName} />
+      <meta property="og:locale" content="fr_FR" />
+      <meta property="og:locale:alternate" content="en_US" />
 
       {/* Twitter */}
       <meta name="twitter:card" content="summary_large_image" />
@@ -51,9 +55,30 @@ export const SEO: React.FC<SEOProps> = ({
 
       {/* Automatic Updates Meta (Search Engine Hints) */}
       <meta name="revisit-after" content="1 days" />
-      <meta name="robots" content="index, follow" />
+      <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
 
       {/* JSON-LD Structured Data */}
+      <script type="application/ld+json">
+        {JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          "name": siteName,
+          "url": url,
+          "logo": image,
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "telephone": "+237-699-932-926",
+            "contactType": "customer service",
+            "areaServed": "CM",
+            "availableLanguage": ["French", "English"]
+          },
+          "sameAs": [
+            "https://facebook.com/mjnexus",
+            "https://twitter.com/mjnexus",
+            "https://instagram.com/mjnexus"
+          ]
+        })}
+      </script>
       <script type="application/ld+json">
         {JSON.stringify({
           "@context": "https://schema.org",
@@ -64,7 +89,7 @@ export const SEO: React.FC<SEOProps> = ({
           "applicationCategory": "FinanceApplication, SportsApplication, ShoppingApplication",
           "genre": "Betting, E-commerce, Home Services",
           "browserRequirements": "Requires JavaScript",
-          "softwareVersion": "2.0.0",
+          "softwareVersion": "2.1.0",
           "operatingSystem": "All",
           "author": {
             "@type": "Person",
@@ -73,12 +98,12 @@ export const SEO: React.FC<SEOProps> = ({
           "offers": {
             "@type": "Offer",
             "price": "0",
-            "priceCurrency": "USD"
+            "priceCurrency": "XAF"
           },
           "aggregateRating": {
             "@type": "AggregateRating",
             "ratingValue": "4.9",
-            "reviewCount": "12500"
+            "reviewCount": "25000"
           }
         })}
       </script>

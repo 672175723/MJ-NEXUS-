@@ -1,6 +1,6 @@
 {
   "short_name": "MJ NEXUS",
-  "name": "MJ NEXUS: The Unified World",
+  "name": "MJ NEXUS | The Unified World Ecosystem",
   "icons": [
     {
       "src": "https://picsum.photos/seed/mjnexus/192/192",
@@ -13,10 +13,8 @@
       "sizes": "512x512"
     }
   ],
-  "start_url": "/",
-  "background_color": "#0f172a",
+  "start_url": ".",
   "display": "standalone",
-  "scope": "/",
   "theme_color": "#10b981",
-  "description": "The Unified World of Services: Betting, Commerce, Home Services, and Trading."
+  "background_color": "#0f172a"
 }
