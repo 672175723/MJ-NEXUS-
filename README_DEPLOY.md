@@ -13,7 +13,7 @@ Pour mettre votre application en ligne gratuitement, je vous recommande **Render
    - **Start Command** : `npm start`
 4. **Configurez les Variables d'Environnement** (Bouton "Environment") :
    - `NODE_ENV` : `production`
-   - `GEMINI_API_KEY` : (Votre clé API Gemini)
+   - `GEMINI_API_KEY` : AIzaSyAI8UfeUYft-BSnYpO9HdreAbQTesC4dlc
    - `PAYMENT_PROVIDER_SECRET_KEY` : (Votre clé secrète de paiement)
 
 ## Option 2 : Déploiement sur Vercel (Frontend uniquement)
